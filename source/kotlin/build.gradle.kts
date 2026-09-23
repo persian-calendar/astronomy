@@ -1,8 +1,7 @@
 plugins {
-    java
-    kotlin("jvm") version "1.6.10"
+    kotlin("multiplatform") version "2.4.20"
     `maven-publish`
-    id("org.jetbrains.dokka") version "1.6.10"
+    id("org.jetbrains.dokka") version "2.2.0"
 }
 
 group = "io.github.cosinekitty"
@@ -12,55 +11,66 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    dokkaHtmlPlugin("org.jetbrains.dokka:kotlin-as-java-plugin:1.6.10")
-    val junit5Version = "5.8.2"
-    testImplementation("org.junit.jupiter:junit-jupiter-api:$junit5Version")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:$junit5Version")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junit5Version")
-    testImplementation(kotlin("test"))
-}
+kotlin {
+    jvmToolchain(21)
 
-tasks.test {
-    useJUnitPlatform()
-}
+    jvm {
+        compilations.named("main") {
+            compileTaskProvider.configure {
+                compilerOptions {
+                    allWarningsAsErrors = true
+                }
+            }
+        }
+        testRuns["test"].executionTask.configure {
+            useJUnitPlatform()
+        }
+    }
 
-configure<JavaPluginExtension> {
-    sourceCompatibility = JavaVersion.VERSION_11
-}
+    js {
+        nodejs()
+        browser()
+    }
 
-val sourceJar by tasks.creating(Jar::class) {
-    dependsOn(tasks["classes"])
-    archiveClassifier.set("sources")
-    from(sourceSets["main"].allSource)
-}
+    wasmJs {
+        nodejs()
+        browser()
+    }
 
-task("fatJar", type = Jar::class) {
-    from(configurations.runtimeClasspath.get().map(::zipTree))
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    with(tasks.jar.get())
-}
+    linuxArm64()
+    linuxX64()
+    macosArm64()
+    mingwX64()
 
-publishing {
-    publications {
-        register("mavenJava", MavenPublication::class) {
-            from(components["kotlin"])
-            artifact(sourceJar)
+    iosArm64()
+    iosSimulatorArm64()
+    tvosArm64()
+    tvosSimulatorArm64()
+    watchosArm64()
+    watchosDeviceArm64()
+    watchosSimulatorArm64()
+
+    sourceSets {
+        getByName("jvmTest") {
+            dependencies {
+                implementation(kotlin("test-junit5"))
+                implementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
+                implementation("org.junit.jupiter:junit-jupiter-params:5.8.2")
+                runtimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
+            }
         }
     }
 }
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    kotlinOptions {
-        allWarningsAsErrors = true
-    }
+val sourceJar = tasks.register<Jar>("sourceJar") {
+    archiveClassifier.set("sources")
+    from(kotlin.sourceSets["commonMain"].kotlin)
 }
 
-tasks.dokkaGfm.configure {
-    dokkaSourceSets {
-        named("main") {
-            includeNonPublic.set(false)
-            reportUndocumented.set(true)
+publishing {
+    publications.withType<MavenPublication>().configureEach {
+        if (name == "jvm") {
+            artifact(sourceJar)
         }
     }
 }
